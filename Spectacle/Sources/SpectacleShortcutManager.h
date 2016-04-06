@@ -6,6 +6,8 @@
 
 @interface SpectacleShortcutManager : NSObject
 
+@property (nonatomic) NSTimer *timer;
+
 - (instancetype)init NS_UNAVAILABLE;
 
 - (instancetype)initWithShortcutStorage:(id<SpectacleShortcutStorageProtocol>)shortcutStorage NS_DESIGNATED_INITIALIZER;

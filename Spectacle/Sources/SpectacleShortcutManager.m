@@ -6,267 +6,292 @@
 static OSStatus hotKeyEventHandler(EventHandlerCallRef handlerCall, EventRef event, void *shortcutManager);
 
 static EventHotKeyID currentShortcutID = {
-  .signature = 'ZERO',
-  .id = 0
+    .signature = 'ZERO',
+    .id = 0
 };
 
 #pragma mark -
 
 @implementation SpectacleShortcutManager
 {
-  id<SpectacleShortcutStorageProtocol> _shortcutStorage;
-  NSMutableDictionary<NSString *, SpectacleShortcut *> *_registeredShortcutsByName;
-  BOOL _areShorcutsEnabled;
+    id<SpectacleShortcutStorageProtocol> _shortcutStorage;
+    NSMutableDictionary<NSString *, SpectacleShortcut *> *_registeredShortcutsByName;
+    BOOL _areShorcutsEnabled;
 }
 
 - (instancetype)initWithShortcutStorage:(id<SpectacleShortcutStorageProtocol>)shortcutStorage
 {
-  if (self = [super init]) {
-    _shortcutStorage = shortcutStorage;
-    _registeredShortcutsByName = [NSMutableDictionary new];
-    _areShorcutsEnabled = YES;
+    if (self = [super init]) {
+        _shortcutStorage = shortcutStorage;
+        _registeredShortcutsByName = [NSMutableDictionary new];
+        _areShorcutsEnabled = YES;
 
-    [self installApplicationEventHandler];
-  }
+        [self installApplicationEventHandler];
+    }
 
-  return self;
+    return self;
 }
 
 #pragma mark -
 
 - (void)registerShortcut:(SpectacleShortcut *)shortcut
 {
-  NSString *shortcutName = shortcut.shortcutName;
-  SpectacleShortcut *existingShortcut = [self registeredShortcutForName:shortcutName];
+    NSString *shortcutName = shortcut.shortcutName;
+    SpectacleShortcut *existingShortcut = [self registeredShortcutForName:shortcutName];
 
-  if (existingShortcut) {
-    [shortcut setShortcutAction:existingShortcut.shortcutAction];
+    if (existingShortcut) {
+        [shortcut setShortcutAction:existingShortcut.shortcutAction];
 
-    [self unregisterShortcutForName:shortcutName];
-  }
+        [self unregisterShortcutForName:shortcutName];
+    }
 
-  if (_areShorcutsEnabled) {
-    [self registerEventHotKey:shortcut];
-  }
+    if (_areShorcutsEnabled) {
+        [self registerEventHotKey:shortcut];
+    }
 
-  _registeredShortcutsByName[shortcutName] = shortcut;
+    _registeredShortcutsByName[shortcutName] = shortcut;
 
-  [self storeRegisteredShortcuts];
+    [self storeRegisteredShortcuts];
 }
 
 - (void)unregisterShortcutForName:(NSString *)name
 {
-  SpectacleShortcut *shortcut = [self registeredShortcutForName:name];
+    SpectacleShortcut *shortcut = [self registeredShortcutForName:name];
 
-  if (!shortcut) {
-    NSLog(@"The specified shortcut has not been registered.");
+    if (!shortcut) {
+        NSLog(@"The specified shortcut has not been registered.");
 
-    return;
-  }
+        return;
+    }
 
-  BOOL eventHotKeyUnregistered = NO;
+    BOOL eventHotKeyUnregistered = NO;
 
-  if (_areShorcutsEnabled) {
-    eventHotKeyUnregistered = [self unregisterEventHotKey:shortcut];
-  }
+    if (_areShorcutsEnabled) {
+        eventHotKeyUnregistered = [self unregisterEventHotKey:shortcut];
+    }
 
-  _registeredShortcutsByName[name] = [SpectacleShortcut clearedShortcutWithName:name];
+    _registeredShortcutsByName[name] = [SpectacleShortcut clearedShortcutWithName:name];
 
-  if (_areShorcutsEnabled && !eventHotKeyUnregistered) {
-    _registeredShortcutsByName[name] = shortcut;
-  }
+    if (_areShorcutsEnabled && !eventHotKeyUnregistered) {
+        _registeredShortcutsByName[name] = shortcut;
+    }
 
-  [self storeRegisteredShortcuts];
+    [self storeRegisteredShortcuts];
 }
 
 - (void)registerShortcuts:(NSArray<SpectacleShortcut *> *)shortcuts
 {
-  for (SpectacleShortcut *shortcut in shortcuts) {
-    [self registerShortcut:shortcut];
-  }
+    for (SpectacleShortcut *shortcut in shortcuts) {
+        [self registerShortcut:shortcut];
+    }
 }
 
 - (void)unregisterShortcuts
 {
-  for (SpectacleShortcut *shortcut in self.registeredShortcuts) {
-    [self unregisterShortcutForName:shortcut.shortcutName];
-  }
+    for (SpectacleShortcut *shortcut in self.registeredShortcuts) {
+        [self unregisterShortcutForName:shortcut.shortcutName];
+    }
 }
 
 #pragma mark -
 
 - (NSArray<SpectacleShortcut *> *)registeredShortcuts
 {
-  return _registeredShortcutsByName.allValues;
+    return _registeredShortcutsByName.allValues;
 }
 
 - (SpectacleShortcut *)registeredShortcutForName:(NSString *)name
 {
-  SpectacleShortcut *shortcut = _registeredShortcutsByName[name];
+    SpectacleShortcut *shortcut = _registeredShortcutsByName[name];
 
-  if (shortcut.isClearedShortcut) {
-    shortcut = nil;
-  }
+    if (shortcut.isClearedShortcut) {
+        shortcut = nil;
+    }
 
-  return shortcut;
+    return shortcut;
 }
 
 #pragma mark -
 
 - (BOOL)isShortcutRegistered:(SpectacleShortcut *)shortcut
 {
-  for (SpectacleShortcut *registeredShortcut in self.registeredShortcuts) {
-    if ([registeredShortcut isEqualToShortcut:shortcut]) {
-      return YES;
+    for (SpectacleShortcut *registeredShortcut in self.registeredShortcuts) {
+        if ([registeredShortcut isEqualToShortcut:shortcut]) {
+            return YES;
+        }
     }
-  }
 
-  return NO;
+    return NO;
 }
 
 #pragma mark -
 
 - (void)enableShortcuts
 {
-  if (_areShorcutsEnabled) return;
+    if (_areShorcutsEnabled) return;
 
-  for (SpectacleShortcut *shortcut in self.registeredShortcuts) {
-    [self registerEventHotKey:shortcut];
-  }
+    for (SpectacleShortcut *shortcut in self.registeredShortcuts) {
+        [self registerEventHotKey:shortcut];
+    }
 
-  _areShorcutsEnabled = YES;
+    _areShorcutsEnabled = YES;
 }
 
 - (void)disableShortcuts
 {
-  if (!_areShorcutsEnabled) return;
+    if (!_areShorcutsEnabled) return;
 
-  for (SpectacleShortcut *shortcut in self.registeredShortcuts) {
-    [self unregisterEventHotKey:shortcut];
-  }
+    for (SpectacleShortcut *shortcut in self.registeredShortcuts) {
+        [self unregisterEventHotKey:shortcut];
+    }
 
-  _areShorcutsEnabled = NO;
+    _areShorcutsEnabled = NO;
 }
 
 #pragma mark -
 
 - (void)installApplicationEventHandler
 {
-  EventTypeSpec typeSpec;
+    EventTypeSpec typeSpec[2];
+    typeSpec[0].eventClass = kEventClassKeyboard;
+    typeSpec[0].eventKind = kEventHotKeyPressed;
 
-  typeSpec.eventClass = kEventClassKeyboard;
-  typeSpec.eventKind = kEventHotKeyPressed;
+    typeSpec[1].eventClass = kEventClassKeyboard;
+    typeSpec[1].eventKind = kEventHotKeyReleased;
 
-  InstallApplicationEventHandler(&hotKeyEventHandler, 1, &typeSpec, (__bridge void*)self, NULL);
+    InstallApplicationEventHandler(&hotKeyEventHandler, GetEventTypeCount(typeSpec), typeSpec, (__bridge void*)self, NULL);
 }
 
 #pragma mark -
 
 - (void)storeRegisteredShortcuts
 {
-  [_shortcutStorage storeShortcuts:self.registeredShortcuts];
+    [_shortcutStorage storeShortcuts:self.registeredShortcuts];
 }
 
 #pragma mark -
 
 - (SpectacleShortcut *)registeredShortcutForShortcutID:(EventHotKeyID)shortcutID
 {
-  for (SpectacleShortcut *shortcut in self.registeredShortcuts) {
-    if (shortcut.shortcutID.id == shortcutID.id) {
-      return shortcut;
+    for (SpectacleShortcut *shortcut in self.registeredShortcuts) {
+        if (shortcut.shortcutID.id == shortcutID.id) {
+            return shortcut;
+        }
     }
-  }
 
-  return nil;
+    return nil;
 }
 
 #pragma mark -
 
 - (void)registerEventHotKey:(SpectacleShortcut *)shortcut
 {
-  if (shortcut.isClearedShortcut) return;
+    if (shortcut.isClearedShortcut) return;
 
-  EventHotKeyRef shortcutRef;
-  EventTargetRef eventTarget = GetApplicationEventTarget();
-  OSStatus err;
+    EventHotKeyRef shortcutRef;
+    EventTargetRef eventTarget = GetApplicationEventTarget();
+    OSStatus err;
 
-  currentShortcutID.id = ++currentShortcutID.id;
+    currentShortcutID.id = ++currentShortcutID.id;
 
-  err = RegisterEventHotKey((unsigned int)shortcut.shortcutCode,
-                            (unsigned int)shortcut.shortcutModifiers,
-                            currentShortcutID,
-                            eventTarget,
-                            0,
-                            &shortcutRef);
+    err = RegisterEventHotKey((unsigned int)shortcut.shortcutCode,
+                              (unsigned int)shortcut.shortcutModifiers,
+                              currentShortcutID,
+                              eventTarget,
+                              0,
+                              &shortcutRef);
 
-  if (err) {
-    NSLog(@"There was a problem registering shortcut %@.", shortcut.shortcutName);
+    if (err) {
+        NSLog(@"There was a problem registering shortcut %@.", shortcut.shortcutName);
 
-    return;
-  }
+        return;
+    }
 
-  shortcut.shortcutID = currentShortcutID;
-  shortcut.ref = shortcutRef;
+    shortcut.shortcutID = currentShortcutID;
+    shortcut.ref = shortcutRef;
 }
 
 - (BOOL)unregisterEventHotKey:(SpectacleShortcut *)shortcut
 {
-  EventHotKeyRef shortcutRef;
-  OSStatus err;
+    EventHotKeyRef shortcutRef;
+    OSStatus err;
 
-  shortcutRef = shortcut.ref;
+    shortcutRef = shortcut.ref;
 
-  if (shortcutRef) {
-    err = UnregisterEventHotKey(shortcutRef);
+    if (shortcutRef) {
+        err = UnregisterEventHotKey(shortcutRef);
 
-    if (err) {
-      NSLog(@"Receiving the following error code when unregistering shortcut %@: %d", shortcut.shortcutName, err);
+        if (err) {
+            NSLog(@"Receiving the following error code when unregistering shortcut %@: %d", shortcut.shortcutName, err);
 
-      return NO;
+            return NO;
+        }
+    } else {
+        NSLog(@"Unable to unregister shortcut %@, no ref appears to exist.", shortcut.shortcutName);
+
+        return NO;
     }
-  } else {
-    NSLog(@"Unable to unregister shortcut %@, no ref appears to exist.", shortcut.shortcutName);
 
-    return NO;
-  }
-
-  return YES;
+    return YES;
 }
 
 #pragma mark -
 
+
 - (OSStatus)handleHotKeyEvent:(EventRef)event
 {
-  SpectacleShortcut *shortcut;
-  EventHotKeyID shortcutID;
-  OSStatus err = GetEventParameter(event,
-                                   kEventParamDirectObject,
-                                   typeEventHotKeyID,
-                                   NULL,
-                                   sizeof(EventHotKeyID),
-                                   NULL,
-                                   &shortcutID);
+    NSLog(@"Shortcut detected");
+    SpectacleShortcut *shortcut;
+    EventHotKeyID shortcutID;
+    OSStatus err = GetEventParameter(event,
+                                     kEventParamDirectObject,
+                                     typeEventHotKeyID,
+                                     NULL,
+                                     sizeof(EventHotKeyID),
+                                     NULL,
+                                     &shortcutID);
 
-  if (err) {
-    return err;
-  }
+    if (err) {
+        return err;
+    }
 
-  shortcut = [self registeredShortcutForShortcutID:shortcutID];
+    shortcut = [self registeredShortcutForShortcutID:shortcutID];
 
-  if (!shortcut) {
-    NSLog(@"Unable to handle event for shortcut with handle %d, the registered shortcut does not exist.", shortcutID.id);
-  }
+    if (!shortcut) {
+        NSLog(@"Unable to handle event for shortcut with handle %d, the registered shortcut does not exist.", shortcutID.id);
+    }
 
-  switch (GetEventKind(event)) {
-    case kEventHotKeyPressed:
-      [shortcut triggerShortcutAction];
+    switch (GetEventKind(event)) {
+        case kEventHotKeyPressed:
+            if([shortcut.shortcutName isEqualToString: @"MakeLarger"] || [shortcut.shortcutName isEqualToString: @"MakeSmaller"]){
+                if (self.timer == NULL)
+                {
+                    self.timer = [NSTimer scheduledTimerWithTimeInterval:0.5 target:self selector:@selector(handleTimer:) userInfo:@{@"shortcut": shortcut} repeats:YES];
+                }
+            }
+            break;
+        case kEventHotKeyReleased:
+            if (self.timer)
+            {
+                [self.timer invalidate];
+                self.timer = NULL;
+            }
+            break;
+        default:
+            break;
+    }
 
-      break;
-    default:
-      break;
-  }
+    return noErr;
+}
 
-  return noErr;
+- (void)handleTimer:(NSTimer*)theTimer
+{
+    SpectacleShortcut* parameter1 = [[theTimer userInfo] objectForKey:@"shortcut"];
+
+    if (parameter1)
+    {
+        [parameter1 triggerShortcutAction];
+    }
 }
 
 @end
@@ -275,5 +300,5 @@ static EventHotKeyID currentShortcutID = {
 
 OSStatus hotKeyEventHandler(EventHandlerCallRef handlerCall, EventRef event, void *shortcutManager)
 {
-  return [(__bridge SpectacleShortcutManager *)shortcutManager handleHotKeyEvent:event];
+    return [(__bridge SpectacleShortcutManager *)shortcutManager handleHotKeyEvent:event];
 }
